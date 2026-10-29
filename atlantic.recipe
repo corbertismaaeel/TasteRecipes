@@ -233,6 +233,65 @@ class TheAtlantic(BasicNewsRecipe):
                 feeds.append((current_section, current_articles))
             return feeds
 
+    def cleanup(self):
+        import os
+        import subprocess
+        print('======================> cleanup self.output_dir : ' + self.output_dir)
+
+        max_size = 2000
+        jpg_quality = 50
+        png_quality = "60-80"
+
+        for root, _, files in os.walk(self.output_dir):
+            for name in files:
+                path = os.path.join(root, name)
+                ext = os.path.splitext(name)[1].lower()
+                if ext not in (".jpg", ".jpeg", ".png"):
+                    continue
+
+                try:
+                    # 获取图片尺寸
+                    result = subprocess.run(
+                        ["identify", "-ping", "-format", "%w %h", path + "[0]"],
+                        capture_output=True, text=True, check=True
+                    )
+                    width, height = map(int, result.stdout.split())
+
+                    # 超过最大尺寸才缩放
+                    resized = width > max_size or height > max_size
+                    if resized:
+                        cmd = ["mogrify", "-resize", f"{max_size}x{max_size}>"]
+                        if ext in (".jpg", ".jpeg"):
+                            cmd += ["-quality", str(jpg_quality)]
+                        subprocess.run(cmd + [path], check=True)
+
+                    # 压缩图片
+                    if ext in (".jpg", ".jpeg"):
+                        # 已经缩放并以目标质量编码，避免重复有损压缩
+                        if not resized:
+                            subprocess.run(
+                                ["jpegoptim", "-m", str(jpg_quality), "--strip-all", path],
+                                check=True, stdout=subprocess.DEVNULL
+                            )
+                    else:
+                        subprocess.run(
+                            [
+                                "pngquant",
+                                "--quality", png_quality,
+                                "--speed", "4",
+                                "--strip",
+                                "--skip-if-larger",
+                                "--force",
+                                "--ext", ".png",
+                                "--", path
+                            ],
+                            check=True, stdout=subprocess.DEVNULL
+                        )
+
+                except (subprocess.CalledProcessError, ValueError, OSError) as e:
+                    print(f"Image compression failed: {path}, {e}")
+
+
 
 if __name__ == '__main__':
     import sys
