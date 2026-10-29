@@ -61,8 +61,8 @@ jobs:
       - name: Build EPUB from recipe
         run: |
           set -euo pipefail
-          test -f atlantic.recipe
-          xvfb-run -a ebook-convert atlantic.recipe "${{ steps.metadata.outputs.filename }}" --verbose
+          test -f atlantic_com.recipe
+          xvfb-run -a ebook-convert atlantic_com.recipe "${{ steps.metadata.outputs.filename }}" --verbose
           test -s "${{ steps.metadata.outputs.filename }}"
           ls -lh "${{ steps.metadata.outputs.filename }}"
 

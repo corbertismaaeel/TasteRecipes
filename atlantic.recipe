@@ -99,7 +99,7 @@ class TheAtlantic(BasicNewsRecipe):
     # No delay between requests, deliberately: any delay at all makes calibre
     # download on a single thread, and each download thread gets a tab of its
     # own in this browser.
-    delay = 0
+    delay = 3
 
     recipe_specific_options = {'date': {'short': 'The date of the edition to download (YYYY/MM format)', 'long': 'For example, 2024/05'}}
 
