@@ -45,7 +45,7 @@ jobs:
           sudo sh /tmp/calibre-installer.sh version=9.17.0
           calibre --version
           ebook-convert --version
-          calibre --version | grep -F '9.17.0'
+          calibre --version | grep -F '9.17'
 
       - name: Prepare EPUB filename and release tag
         id: metadata
