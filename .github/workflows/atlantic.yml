@@ -1,0 +1,84 @@
+name: Atlantic Monthly EPUB
+
+on:
+  schedule:
+    - cron: '0 5 2 * *'
+      timezone: 'Asia/Shanghai'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atlantic-monthly-epub
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      TZ: Asia/Shanghai
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates wget xz-utils python3 xdg-utils \
+            libegl1 libopengl0 libgl1 libglib2.0-0 \
+            libnss3 libnspr4 libdbus-1-3 \
+            libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 \
+            libxfixes3 libxrandr2 libgbm1 libasound2t64 \
+            libxcb-cursor0 libxcb-xinerama0 \
+            xvfb fonts-noto-core fonts-noto-cjk
+
+      - name: Install calibre 9.17.0
+        run: |
+          set -euo pipefail
+          wget -q https://download.calibre-ebook.com/linux-installer.sh -O /tmp/calibre-installer.sh
+          sudo sh /tmp/calibre-installer.sh version=9.17.0
+          calibre --version
+          ebook-convert --version
+          calibre --version | grep -F '9.17.0'
+
+      - name: Prepare EPUB filename and release tag
+        id: metadata
+        run: |
+          set -euo pipefail
+          DATE="$(TZ=Asia/Shanghai date +%Y%m%d)"
+          MONTH="$(TZ=Asia/Shanghai date +%Y%m)"
+          echo "filename=Atlantic_${DATE}.epub" >> "$GITHUB_OUTPUT"
+          echo "tag=atlantic-${MONTH}" >> "$GITHUB_OUTPUT"
+          echo "date=${DATE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build EPUB from recipe
+        run: |
+          set -euo pipefail
+          test -f atlantic.recipe
+          xvfb-run -a ebook-convert atlantic.recipe "${{ steps.metadata.outputs.filename }}" --verbose
+          test -s "${{ steps.metadata.outputs.filename }}"
+          ls -lh "${{ steps.metadata.outputs.filename }}"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.metadata.outputs.tag }}
+          EPUB: ${{ steps.metadata.outputs.filename }}
+          DATE: ${{ steps.metadata.outputs.date }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$EPUB" --clobber
+          else
+            gh release create "$TAG" "$EPUB" \
+              --target "$GITHUB_SHA" \
+              --title "Atlantic ${DATE}" \
+              --notes "Atlantic EPUB generated on ${DATE} (Asia/Shanghai) with calibre 9.17.0." \
+              --latest
+          fi
